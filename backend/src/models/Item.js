@@ -37,11 +37,7 @@ const itemSchema = new mongoose.Schema({
   },
   location: {
     type: {
-      address: String,
-      coordinates: {
-        lat: Number,
-        lng: Number
-      }
+      address: String
     },
     required: true
   },

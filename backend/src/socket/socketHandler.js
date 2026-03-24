@@ -4,8 +4,10 @@ const Match = require('../models/Match');
 const User = require('../models/User');
 
 const connectedUsers = new Map();
+let ioInstance = null;
 
 exports.initializeSocket = (io) => {
+  ioInstance = io;
   // Socket authentication middleware
   io.use(async (socket, next) => {
     try {
@@ -32,7 +34,9 @@ exports.initializeSocket = (io) => {
 
   io.on('connection', (socket) => {
     console.log(`User connected: ${socket.userId}`);
-    connectedUsers.set(socket.userId, socket.id);
+    const userSockets = connectedUsers.get(socket.userId) || new Set();
+    userSockets.add(socket.id);
+    connectedUsers.set(socket.userId, userSockets);
 
     // Join chat room
     socket.on('join-room', async ({ chatRoomId }) => {
@@ -119,9 +123,27 @@ exports.initializeSocket = (io) => {
     // Disconnect
     socket.on('disconnect', () => {
       console.log(`User disconnected: ${socket.userId}`);
-      connectedUsers.delete(socket.userId);
+      const userSockets = connectedUsers.get(socket.userId);
+      if (!userSockets) return;
+
+      userSockets.delete(socket.id);
+      if (userSockets.size === 0) {
+        connectedUsers.delete(socket.userId);
+      } else {
+        connectedUsers.set(socket.userId, userSockets);
+      }
     });
   });
 };
 
-exports.getIO = () => io;
+exports.emitNotificationToUser = (io, userId, notification) => {
+  if (!io) return;
+  const userSockets = connectedUsers.get(userId.toString());
+  if (!userSockets || userSockets.size === 0) return;
+
+  userSockets.forEach((socketId) => {
+    io.to(socketId).emit('new-notification', notification);
+  });
+};
+
+exports.getIO = () => ioInstance;

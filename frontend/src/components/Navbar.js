@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useSocket } from '../context/SocketContext';
 import axios from 'axios';
+import { toast } from 'react-toastify';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
+  const socket = useSocket();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -19,6 +22,29 @@ const Navbar = () => {
       return () => clearInterval(interval);
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!socket || !user) return;
+
+    const handleNewNotification = (notification) => {
+      setNotifications((prev) => [notification, ...prev].slice(0, 5));
+      setUnreadCount((count) => count + 1);
+
+      if (notification.type === 'match' && notification.link) {
+        toast.success(`${notification.title}: ${notification.message}`, {
+          autoClose: 5000,
+          onClick: () => navigate(notification.link)
+        });
+      } else {
+        toast.info(`${notification.title}: ${notification.message}`, {
+          autoClose: 4000
+        });
+      }
+    };
+
+    socket.on('new-notification', handleNewNotification);
+    return () => socket.off('new-notification', handleNewNotification);
+  }, [socket, user, navigate]);
 
   useEffect(() => {
     // Close dropdown when clicking outside

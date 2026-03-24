@@ -3,6 +3,7 @@ const Match = require('../models/Match');
 const User = require('../models/User');
 const nodemailer = require('nodemailer');
 const admin = require('firebase-admin');
+const { emitNotificationToUser, getIO } = require('../socket/socketHandler');
 
 // Initialize Firebase Admin
 let firebaseInitialized = false;
@@ -53,12 +54,12 @@ exports.sendMatchNotifications = async (match) => {
     const fullChatLink = `${process.env.CLIENT_URL}${chatLink}`;
 
     // Create in-app notifications
-    await Promise.all([
+    const [lostNotification, foundNotification] = await Promise.all([
       Notification.create({
         user: lostUser._id,
         type: 'match',
         title: 'Match Found!',
-        message: `You got a match! Check your email for the chat link.`,
+        message: `A similar item matched. Tap to open chat now.`,
         link: chatLink,
         data: { matchId: match._id, chatRoomId: match.chatRoomId }
       }),
@@ -66,11 +67,15 @@ exports.sendMatchNotifications = async (match) => {
         user: foundUser._id,
         type: 'match',
         title: 'Match Found!',
-        message: `You got a match! Check your email for the chat link.`,
+        message: `A similar item matched. Tap to open chat now.`,
         link: chatLink,
         data: { matchId: match._id, chatRoomId: match.chatRoomId }
       })
     ]);
+
+    const io = getIO();
+    emitNotificationToUser(io, lostUser._id, lostNotification);
+    emitNotificationToUser(io, foundUser._id, foundNotification);
 
     // Send push notifications
     await Promise.all([

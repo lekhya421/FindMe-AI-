@@ -133,7 +133,7 @@ Fields:
 - description: string
 - category: "electronics" | "documents" | "pets" | "accessories" | "clothing" | "keys" | "bags" | "other"
 - date: ISO8601 date string
-- location: JSON string {"address": "...", "coordinates": {"lat": 0, "lng": 0}}
+- location: JSON string {"address": "..."}
 - image: file (optional)
 - audio: file (optional)
 
@@ -150,7 +150,6 @@ Response 201:
     "date": "2024-01-15T10:00:00Z",
     "location": {
       "address": "Central Park, NY",
-      "coordinates": {"lat": 40.785091, "lng": -73.968285}
     },
     "imageUrl": "https://cloudinary.com/...",
     "status": "active",
