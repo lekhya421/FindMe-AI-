@@ -5,8 +5,9 @@ const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
   const allowedTypes = process.env.ALLOWED_FILE_TYPES.split(',');
+  const normalizedMime = (file.mimetype || '').toLowerCase().split(';')[0].trim();
   
-  if (allowedTypes.includes(file.mimetype)) {
+  if (allowedTypes.includes(normalizedMime)) {
     cb(null, true);
   } else {
     cb(new Error(`Invalid file type. Allowed: ${allowedTypes.join(', ')}`), false);

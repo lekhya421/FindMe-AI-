@@ -1,11 +1,15 @@
 const Item = require('../models/Item');
 const Match = require('../models/Match');
 const { v4: uuidv4 } = require('uuid');
-const { findSimilarItems } = require('./aiService');
 const { sendMatchNotifications } = require('./notificationService');
 
 const IMAGE_THRESHOLD = parseFloat(process.env.IMAGE_SIMILARITY_THRESHOLD) || 0.78;
-const TEXT_THRESHOLD = parseFloat(process.env.TEXT_SIMILARITY_THRESHOLD) || 0.70;
+const TEXT_THRESHOLD = parseFloat(process.env.TEXT_SIMILARITY_THRESHOLD) || 0.55;
+
+const itemTextBlob = (item) => {
+  const parts = [item.title, item.description, item.audioTranscript].filter(Boolean);
+  return parts.join(' ');
+};
 
 const cosineSimilarity = (vecA, vecB) => {
   const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
@@ -39,48 +43,51 @@ exports.findMatches = async (newItem) => {
 
     for (const candidate of candidates) {
       console.log(`   📝 Comparing with: ${candidate.title}`);
+      const text1 = itemTextBlob(newItem);
+      const text2 = itemTextBlob(candidate);
+      const textScore = calculateTextSimilarity(text1, text2);
+
+      let imageScore = null;
+      const hasBothEmbeddings =
+        newItem.imageEmbedding && candidate.imageEmbedding &&
+        Array.isArray(newItem.imageEmbedding) && Array.isArray(candidate.imageEmbedding) &&
+        newItem.imageEmbedding.length > 0 && candidate.imageEmbedding.length > 0;
+
+      if (hasBothEmbeddings) {
+        try {
+          imageScore = cosineSimilarity(newItem.imageEmbedding, candidate.imageEmbedding);
+          if (isNaN(imageScore) || !isFinite(imageScore)) {
+            imageScore = null;
+          } else {
+            console.log(`      Image similarity: ${(imageScore * 100).toFixed(2)}%`);
+          }
+        } catch (error) {
+          console.log(`      Image matching failed, using text only: ${error.message}`);
+          imageScore = null;
+        }
+      }
+
+      console.log(`      Text similarity: ${(textScore * 100).toFixed(2)}%`);
+
+      const imageOk = imageScore !== null && imageScore >= IMAGE_THRESHOLD;
+      const textOk = textScore >= TEXT_THRESHOLD;
+
       let matchScore = 0;
       let matchType = '';
 
-      // Image-to-Image matching
-      if (newItem.imageEmbedding && candidate.imageEmbedding && 
-          Array.isArray(newItem.imageEmbedding) && Array.isArray(candidate.imageEmbedding) &&
-          newItem.imageEmbedding.length > 0 && candidate.imageEmbedding.length > 0) {
-        try {
-          matchScore = cosineSimilarity(newItem.imageEmbedding, candidate.imageEmbedding);
-          if (isNaN(matchScore) || !isFinite(matchScore)) {
-            throw new Error('Invalid similarity score');
-          }
+      if (imageOk || textOk) {
+        if (imageOk && (!textOk || imageScore >= textScore)) {
+          matchScore = imageScore;
           matchType = 'image';
-          console.log(`      Image similarity: ${(matchScore * 100).toFixed(2)}%`);
-        } catch (error) {
-          console.log(`      Image matching failed, falling back to text: ${error.message}`);
-          // Fall back to text matching
-          const text1 = `${newItem.title} ${newItem.description}`;
-          const text2 = `${candidate.title} ${candidate.description}`;
-          matchScore = calculateTextSimilarity(text1, text2);
+        } else {
+          matchScore = textScore;
           matchType = 'text';
         }
-      }
-      // Text-to-Text matching (using description and title)
-      else {
-        // Use text similarity when images are not available
-        const text1 = `${newItem.title} ${newItem.description}`;
-        const text2 = `${candidate.title} ${candidate.description}`;
-        matchScore = calculateTextSimilarity(text1, text2);
-        matchType = 'text';
-        console.log(`      Text similarity: ${(matchScore * 100).toFixed(2)}%`);
-      }
-
-      // Check threshold
-      const threshold = matchType === 'image' ? IMAGE_THRESHOLD : TEXT_THRESHOLD;
-      console.log(`      Threshold: ${(threshold * 100).toFixed(2)}%`);
-      
-      if (matchScore >= threshold) {
-        console.log(`   ✅ MATCH FOUND! Score: ${(matchScore * 100).toFixed(2)}%`);
+        console.log(`   ✅ MATCH FOUND! (${matchType}) Score: ${(matchScore * 100).toFixed(2)}%`);
         await createMatch(newItem, candidate, matchScore, matchType);
       } else {
-        console.log(`   ❌ Score too low: ${(matchScore * 100).toFixed(2)}% < ${(threshold * 100).toFixed(2)}%`);
+        const imgPart = imageScore !== null ? `${(imageScore * 100).toFixed(0)}% (need ${(IMAGE_THRESHOLD * 100).toFixed(0)}%)` : 'n/a';
+        console.log(`   ❌ No match — text ${(textScore * 100).toFixed(0)}% (need ${(TEXT_THRESHOLD * 100).toFixed(0)}%), image ${imgPart}`);
       }
     }
   } catch (error) {

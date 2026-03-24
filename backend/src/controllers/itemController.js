@@ -6,15 +6,30 @@ const { findMatches } = require('../services/matchingService');
 exports.createItem = async (req, res, next) => {
   try {
     const { type, title, description, verificationInfo, category, date, location } = req.body;
+    let parsedLocation = null;
+
+    if (typeof location === 'string') {
+      try {
+        parsedLocation = JSON.parse(location);
+      } catch (parseError) {
+        return res.status(400).json({ message: 'Invalid location format' });
+      }
+    } else if (location && typeof location === 'object') {
+      parsedLocation = location;
+    }
+
+    if (!parsedLocation || !parsedLocation.address) {
+      return res.status(400).json({ message: 'Location address is required' });
+    }
     
     const itemData = {
       user: req.user.id,
       type,
       title,
-      description,
+      description: (description || '').trim(),
       category,
       date,
-      location: JSON.parse(location)
+      location: parsedLocation
     };
 
     // Add verification info if provided (for lost items)
@@ -44,10 +59,20 @@ exports.createItem = async (req, res, next) => {
       const audioUrl = await uploadToCloudinary(req.files.audio[0]);
       itemData.audioUrl = audioUrl;
       
-      // Transcribe audio
-      const transcript = await transcribeAudio(audioUrl);
-      itemData.audioTranscript = transcript;
-      itemData.description = transcript; // Use transcript as description
+      // Transcribe audio; continue with existing description if transcription fails.
+      try {
+        const transcript = await transcribeAudio(audioUrl);
+        if (transcript) {
+          itemData.audioTranscript = transcript;
+          itemData.description = transcript;
+        }
+      } catch (error) {
+        console.log('Warning: Could not transcribe audio:', error.message);
+      }
+
+      if (!itemData.description) {
+        itemData.description = 'Voice recording submitted';
+      }
     }
 
     const item = await Item.create(itemData);

@@ -21,7 +21,13 @@ if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_CLOUD_NAME !== '
 }
 
 exports.uploadToCloudinary = async (file) => {
-  if (process.env.CLOUDINARY_CLOUD_NAME === 'demo') {
+  const isCloudinaryConfigured =
+    process.env.CLOUDINARY_CLOUD_NAME &&
+    process.env.CLOUDINARY_API_KEY &&
+    process.env.CLOUDINARY_API_SECRET &&
+    process.env.CLOUDINARY_CLOUD_NAME !== 'demo';
+
+  if (!isCloudinaryConfigured) {
     // Save file locally instead of using placeholder
     const uploadsDir = path.join(__dirname, '../../uploads');
     const fileName = `${Date.now()}-${file.originalname}`;

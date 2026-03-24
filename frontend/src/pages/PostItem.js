@@ -12,15 +12,23 @@ const PostItem = () => {
     verificationInfo: '',
     category: 'electronics',
     date: '',
-    address: '',
-    lat: '',
-    lng: ''
+    address: ''
   });
   const [image, setImage] = useState(null);
   const [useVoice, setUseVoice] = useState(false);
   const [loading, setLoading] = useState(false);
   
-  const { isRecording, audioBlob, startRecording, stopRecording, resetRecording } = useVoiceRecording();
+  const {
+    isRecording,
+    audioBlob,
+    transcript,
+    interimTranscript,
+    speechError,
+    isSpeechSupported,
+    startRecording,
+    stopRecording,
+    resetRecording
+  } = useVoiceRecording();
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -39,18 +47,15 @@ const PostItem = () => {
       const data = new FormData();
       data.append('type', formData.type);
       data.append('title', formData.title);
-      data.append('description', formData.description);
+      const liveVoiceText = `${transcript}${interimTranscript ? ` ${interimTranscript}` : ''}`.trim();
+      data.append('description', useVoice ? (liveVoiceText || formData.description) : formData.description);
       if (formData.verificationInfo) {
         data.append('verificationInfo', formData.verificationInfo);
       }
       data.append('category', formData.category);
       data.append('date', formData.date);
       data.append('location', JSON.stringify({
-        address: formData.address,
-        coordinates: {
-          lat: parseFloat(formData.lat) || 0,
-          lng: parseFloat(formData.lng) || 0
-        }
+        address: formData.address
       }));
 
       if (image) {
@@ -140,39 +145,15 @@ const PostItem = () => {
           />
         </div>
 
-        <div className="form-row">
-          <div className="form-group">
-            <label>Latitude (optional)</label>
-            <input
-              type="number"
-              step="any"
-              name="lat"
-              value={formData.lat}
-              onChange={handleChange}
-              placeholder="40.785091"
-            />
-          </div>
-          <div className="form-group">
-            <label>Longitude (optional)</label>
-            <input
-              type="number"
-              step="any"
-              name="lng"
-              value={formData.lng}
-              onChange={handleChange}
-              placeholder="-73.968285"
-            />
-          </div>
-        </div>
-
         <div className="form-group">
           <label>
             <input
               type="checkbox"
               checked={useVoice}
               onChange={(e) => setUseVoice(e.target.checked)}
+              style={{ marginRight: '0.5rem', transform: 'scale(1.15)', accentColor: '#3498db' }}
             />
-            Use voice description instead of text
+            <span style={{ fontWeight: 500 }}>Use voice description instead of text</span>
           </label>
         </div>
 
@@ -211,6 +192,12 @@ const PostItem = () => {
           <div className="form-group">
             <label>Voice Recording</label>
             <div className="voice-recorder">
+              {!isSpeechSupported && (
+                <small style={{ color: '#856404', display: 'block', marginBottom: '0.5rem' }}>
+                  Live transcription is not supported in this browser, but audio recording still works.
+                </small>
+              )}
+
               {!isRecording && !audioBlob && (
                 <button type="button" onClick={startRecording} className="btn-record">
                   Start Recording
@@ -227,6 +214,28 @@ const PostItem = () => {
                   <button type="button" onClick={resetRecording} className="btn-reset">
                     Re-record
                   </button>
+                </div>
+              )}
+
+              {(isRecording || transcript || interimTranscript) && (
+                <div style={{
+                  marginTop: '0.75rem',
+                  padding: '0.75rem',
+                  borderRadius: '6px',
+                  border: '1px solid #d9edf7',
+                  background: '#f4fbff'
+                }}>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.25rem' }}>
+                    Live transcript
+                  </div>
+                  <div style={{ minHeight: '2.5rem', lineHeight: 1.5 }}>
+                    {`${transcript}${interimTranscript ? ` ${interimTranscript}` : ''}`.trim() || 'Listening...'}
+                  </div>
+                  {speechError && (
+                    <small style={{ color: '#b94a48', display: 'block', marginTop: '0.4rem' }}>
+                      {speechError}
+                    </small>
+                  )}
                 </div>
               )}
             </div>
