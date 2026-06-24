@@ -1,0 +1,28 @@
+<template>
+    <lightning-card title="Leave History" icon-name="standard:timesheet">
+        <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+            <template if:true={hasRows}>
+                <lightning-datatable
+                    key-field="Id"
+                    data={rows}
+                    columns={columns}
+                    onrowaction={handleRowAction}
+                ></lightning-datatable>
+            </template>
+            <template if:false={hasRows}>
+                <p class="slds-text-color_weak">No leave requests yet.</p>
+            </template>
+        </div>
+    </lightning-card>
+
+    <lightning-card title="Leave Balances" icon-name="standard:resource_capacity">
+        <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+            <template if:true={hasBalances}>
+                <lightning-datatable key-field="Id" data={balances} columns={balanceColumns}></lightning-datatable>
+            </template>
+            <template if:false={hasBalances}>
+                <p class="slds-text-color_weak">No leave balances available.</p>
+            </template>
+        </div>
+    </lightning-card>
+</template>
